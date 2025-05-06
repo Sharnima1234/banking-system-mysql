@@ -16,3 +16,5 @@ A MySQL-based project that simulates employee records, job roles, salaries, and 
 
 ## Author
 Sharnima | [LinkedIn](www.linkedin.com/in/sharnima-mallik-50464027b)
+
+Please **do not modify** the code in this repository. If you'd like to make changes, fork the repository to your own GitHub account.
