@@ -108,6 +108,6 @@ CALL proc_customer_detail(1);
 
 
 ## Author
-Sharnima | [LinkedIn](www.linkedin.com/in/sharnima-mallik-50464027b)
+Sharnima | [LinkedIn](https://www.linkedin.com/in/sharnima-mallik-50464027b)
 
-Please **do not modify** the code in this repository. If you'd like to make changes, fork the repository to your own GitHub account.
+Please **DO NOT MODIFY** the code in this repository. If you'd like to make changes, fork the repository to your own GitHub account.
