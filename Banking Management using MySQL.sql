@@ -4,6 +4,7 @@
 CREATE DATABASE IF NOT EXISTS project_1_banking_db;
 USE project_1_banking_db;
 
+-- 📁 Customers table: Stores basic customer details
 -- Customers
 CREATE TABLE customers (
     customer_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -21,6 +22,7 @@ CREATE TABLE customers (
 )
 ENGINE = InnoDB;
 
+-- 💳 Accounts table: Linked to customers, stores balance and account status
 -- Accounts
 CREATE TABLE accounts (
     account_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -39,6 +41,7 @@ ENGINE = InnoDB;
 
 -- Transactions
 -- One for Deposit and Withdrawal
+-- 💰 Deposit/Withdrawal transactions table
 CREATE TABLE transaction_depo_with (
     transaction_id INT PRIMARY KEY AUTO_INCREMENT,
     account_id INT NOT NULL,
@@ -55,6 +58,7 @@ AUTO_INCREMENT = 1001
 ENGINE = InnoDB;
 
 -- One for Transactions between 2 accounts
+-- 🔁 Transfer transactions between accounts
 CREATE TABLE transaction_transfer (
     transaction_id INT PRIMARY KEY AUTO_INCREMENT,
     from_account_id INT NOT NULL,
@@ -76,6 +80,7 @@ AUTO_INCREMENT = 2001
 ENGINE = InnoDB;
 
 -- Creating the Table to store Deleted accounts : Need all customers columns and account_id
+-- 🧾 Log table: Tracks deleted accounts for audit
 CREATE TABLE account_log_table (
     customer_id INT ,
     account_id INT ,
@@ -89,6 +94,7 @@ ENGINE = InnoDB;
 
 
 -- Inserting sample Data
+-- 📁 Customers table: Stores basic customer details
 -- Customers
 INSERT INTO customers (name, email, phone, created_at) 
 VALUES
@@ -100,6 +106,7 @@ VALUES
 
 
 
+-- 💳 Accounts table: Linked to customers, stores balance and account status
 -- Accounts
 INSERT INTO accounts (customer_id, account_type, balance, status) 
 VALUES
@@ -157,6 +164,7 @@ SELECT * FROM transaction_transfer;
 
 -- 1. To Check for Minimum balance in 'accounts' table
 DELIMITER $$
+-- ⚠️ Trigger to automate validation or logging
 	CREATE TRIGGER trigger_check_neg_bal
 		BEFORE UPDATE
 		ON accounts
@@ -168,13 +176,60 @@ DELIMITER $$
 		END $$
 DELIMITER ;		
 	
--- 2. To log down records for any 'account_id' deleted :
+/* 
+ As Triggers perform Row wise, that is every Row operation or Update
+ based on a account_id is done independently, in the case of
+ 'Transfer' type Transaction, we will have 2 account_ids, and,
+  Triggers will fire twice and insert the Transaction as 2 different Rows.
+ Therefore the Transaction logging will be done later in the code using Procedures. 
+*/
+
+
+/* 2. Our Goal is to record both the 'customer_id' and 'account_id'
+          for every 'account_id' deleted.
+                  AND
+To log down all the related 'account_ids' for any 'customer_id',
+	    if the customer deletes his 'customer_id'
+So, We will have 2 Triggers here-: For 'customers' and 'accounts' table
+      
+*/
+    
+  /* As 'DELETE ON CASCADE' is enabled on 
+           FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+	So, if 'customer_id' from Parent Table : 'customers' is deleted,
+     DELETE ON CASCADE would automatically cause Deletion of
+    Records from Child Table 'accounts', where 'customer_id' matches, but
+          ** Without Firing TRIGGERS**
+    
+  So, if You want Triggers to Fire on Child Table, 'DELETE ON CASCADE '
+        must be  disabled.
+Also Note : Due to Foreign Key Referential Integrity, The Child Table 'accounts'
+    MUST Always be deleted BEFORE the Parent Table 'customers'.
+    
+If DELETE ON CASCADE is Enabled and You delete customer_id from 'customers'.
+	this causes "automatic" deletion of account_ids related to customer_id in 'customers'.
+Only Trigger for Parent(customers) table fires. No Trigger firing for Child(accounts) table
+
+If DELETE ON CASCADE is Disabled and You delete customer_id from 'customers'.
+	this causes "Referential Integrity by FK" restriction, 
+    where Child Table accounts(account_id) refers to customers(customer_id) .
+So as you try to delete the Parent Rows before Child Rows, Nothing geets deleted.
+
+If DELETE ON CASCADE is Disabled and You delete customer_id from 'accounts'.
+	Then Child Rows can happily get deleted followed by Trigger on child Table,
+            Trigger on Parent Table. 
+        This is the best scenario so far.
+  */
+  
+-- To log down records for any 'account_id' deleted :
 DELIMITER $$
+-- ⚠️ Trigger to automate validation or logging
   CREATE TRIGGER trigger_log_deleted_account
 		AFTER DELETE
 		ON accounts     -- For 'accounts' table
   FOR EACH ROW
 		BEGIN
+-- 🧾 Log table: Tracks deleted accounts for audit
 			INSERT INTO account_log_table(
 						customer_id,
 						account_id,   
@@ -194,13 +249,15 @@ DELIMITER $$
 	 END $$
 DELIMITER ;
   
--- 3. To log down All the related 'account_ids' for a 'customer_id'
+-- To log down All the related 'account_ids' for a 'customer_id'
 DELIMITER $$
+-- ⚠️ Trigger to automate validation or logging
 	CREATE TRIGGER trigger_log_deleted_customer
 		AFTER DELETE
 		ON customers     -- For 'customers' table
 	FOR EACH ROW
 		BEGIN
+-- 🧾 Log table: Tracks deleted accounts for audit
 			INSERT INTO account_log_table(
 						customer_id,
 						account_id,   -- we don’t know any account_id here
@@ -226,8 +283,14 @@ DELIMITER ;
 -- --------------------------------------------------------------------------------
 
 
+/*
+ This procedure 1 can only run , if an existing customer_id is there.
+ For new customers, we will run Procedure 2 first, which has the creation of
+ we can independently give a CALL to Procedure 1.
+*/
 -- Procedure 1 : A new record in 'accounts' table
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
     CREATE PROCEDURE proc_new_account(
 		IN cust_id INT,
         IN account_type VARCHAR(10),
@@ -253,6 +316,7 @@ DELIMITER ;
     as Every new customer_id should have atleast 1 new account_id
 */
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
     CREATE PROCEDURE proc_new_customer(
 		IN cust_name VARCHAR(100),
         IN cust_email VARCHAR(100),
@@ -283,8 +347,14 @@ DELIMITER ;
  
 -- Procedure 3 : For Transactions
 
+/* We have 3 choices : 'Withdrawal', 'Deposit', 'Transfer'. 
+   For 'Withdrawal' and 'Deposit', we are using 'proc_depo_with'.
+   
+*/
+
 -- For 'Withdrawal' and 'Deposit'
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE proc_depo_with(
 		IN account_id INT,
         IN trans_type VARCHAR(100),
@@ -315,7 +385,6 @@ DELIMITER $$
 									   USE INDEX (PRIMARY)  -- Note this 
 									   SET balance = balance - trans_amt
 									WHERE account_id = acc_id 
-									LIMIT 1;      -- Note This
 								COMMIT;
                                 
 		   WHEN trans_type = 'Deposit' THEN 
@@ -324,7 +393,6 @@ DELIMITER $$
 									   USE INDEX (PRIMARY)  -- Note this 
 									   SET balance = balance + trans_amt
 									WHERE account_id = acc_id 
-									LIMIT 1;      -- Note This
 								COMMIT;
 	END CASE; 
     
@@ -337,6 +405,7 @@ DELIMITER ;
 
 -- For 'Transfer' Transaction, we need 2 account_ids :
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE proc_transfer(
 		IN from_account_id INT,
 		IN to_account_id INT,
@@ -394,6 +463,7 @@ DELIMITER ;
 
 -- Procedure 4 : Deleting Records from 'accounts' table
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE proc_delete_account(
 		IN cust_id INT
 	)
@@ -418,6 +488,7 @@ DELIMITER ;
 -- Procedure 5 : Deleting Records from 'customers' table
 DELIMITER $$
 
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE proc_delete_record(
 		IN cust_id INT
 	)
@@ -429,6 +500,16 @@ DELIMITER $$
 			SELECT CONCAT('Error Occured while deleting Record : ', v_msg) AS cant_del_record;
 		END;
 		
+	
+	/* 
+  With Foreign Key accounts(customer_id) referencing customers(customer_id),
+     and 'ON DELETE CASCADE' put ON,
+  if we delete a 'customer_id' from 'customers', 
+  MySQL "silently" removes ALL the account_id(s) from accounts table
+  referencing 'customer_id' of customers table "without firing Triggers",
+       as a result of this referential interity.
+       
+	*/ 
         SET SQL_SAFE_UPDATES = 0;
         
         -- Manually deleting Accounts
@@ -442,10 +523,12 @@ DELIMITER $$
 	END $$
 DELIMITER ;
 
--- Procedure 6 : Selecting the Details of an Active Customer using Views 
-                                   -- with Dynamic SQL
-
+/* Procedure 6 : Selecting the Details of an Active Customer using Views 
+                                   with Dynamic SQL
+ Procedure Arguments, as these only are valid for the Session, unlike Views
+ which last even after Session expires */
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE proc_customer_detail(IN cust_id INT)
 	BEGIN
 		DECLARE v_msg TEXT;
@@ -479,6 +562,7 @@ DELIMITER ;
 
 -- Procedure 7 : To see no. of accounts a customer has :
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE proc_accounts_per_customer(IN cust_id INT)
 	BEGIN
 		DECLARE v_msg TEXT;
@@ -497,7 +581,29 @@ DELIMITER $$
         
 	-- Select the Data :
  -- ****************** For Deposit and Withdrawals *****************************
- 
+ /*
+	Now see, You are performing an INNER JOIN b/w 'customers' and 'accounts'.
+					The Inner Join is On 'customer_id'
+                    
+    Next this Joined Table has a LEFT JOIN with 'transaction_depo_with'.
+					The Left Join is On 'account_id'
+                    
+    Finally the above Complex Joined Table forms another LEFT JOIN with 'transaction_transfer'.
+					This Left Join is On 'account_id' linking it from 
+                    'accounts' table, to both the 'from' and 'to' account_id
+                    in the 'transaction_transfer' table. 
+	
+As the Last 2 Left Joins are on 'account_id' , wether you do a 'Deposit'
+or 'Withdrawal' , there will always be a 'Transfer' in the Row because of the
+Last Join or vice-versa. So, when you Sum up the amounts where type is 'Deposit'
+or 'Withdrawal', you are also "Summing up Transfers". Same with 'Transfers', where
+every Transaction in your Final Join has an 'account_id' linked, so the Joins happen
+and literally Sums up "Every Row". 
+
+'n' matching Rows based on 'account_id', so your Rows increase to 'n' or by n-r.
+This leads to Duplication of Values in Columns and you Sum up duplicates.
+    
+ */	
 	SELECT 
 			c.name, c.customer_id, a.account_id, c.phone, c.email ,
             a.account_type AS Account_Type,
@@ -549,15 +655,23 @@ DELIMITER ;
 -- -----------------------------------------------------------------------------
 /* 
 	We wil be Wrapping Procedures to catch Argument parsing errors :
-    Like Phone No. should be Only 10 Digits, Email must contain '@', 
-    datatype mismatch which is outside routine’s own error‐handler machinery.
+    Like Phone No. should be Only 10 Digits, Email must contain '@'
+	, Minimum Balance should be 200 rupees in 'accounts' table, datatype mismatch.
      
-        So we will wrap our procedures inside outer procedures
+	Error‐handlers declared inside the procedure only take effect 
+     once you’ve successfully passed the parameter‐conversion step 
+     and begun executing the routine body.
+     
+     There is no chance for an internal DECLARE HANDLER in our procedures
+     to intercept a datatype‐mismatch at this point.
+
+So we will wrap our procedures inside outer procedures
 	
 */
 
 -- 1. To Wrap proc_new_customer()
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE wrap_proc_new_customer(
 		IN cust_name VARCHAR(100),
         IN cust_email VARCHAR(100),
@@ -595,6 +709,7 @@ DELIMITER ;
 
 -- 2. To Wrap proc_new_account()
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE wrap_proc_new_account(
 		IN cust_id VARCHAR(100),
         IN account_type VARCHAR(100),
@@ -622,6 +737,7 @@ DELIMITER ;
 
 -- 3. To Wrap proc_depo_with()
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE wrap_proc_depo_with(
 		IN account_id VARCHAR(100),
 		IN trans_type VARCHAR(100),
@@ -651,6 +767,7 @@ DELIMITER ;
 
 -- 4. To Wrap wrap_proc_transfer()
 DELIMITER $$
+-- 🛠️ Stored procedure for modular operations
 	CREATE PROCEDURE wrap_proc_transfer(
 	IN from_account_id VARCHAR(100),
     IN to_account_id VARCHAR(100),
@@ -681,6 +798,10 @@ DELIMITER $$
 DELIMITER ;
 
 
+
+-- To see View(s) :
+-- SHOW FULL TABLES WHERE TABLE_TYPE = 'View';
+
 -- To see All Procedures:
  SHOW PROCEDURE STATUS WHERE Db = DATABASE();
 
@@ -689,8 +810,8 @@ DELIMITER ;
 
 -- 1a. To Insert a New Record
 CALL wrap_proc_new_customer('MySQL', 'MySQL@gmail.com', '1357924680','Savings', 1000);
-  -- SELECT * FROM customers;
-  -- SELECT * FROM accounts;
+  SELECT * FROM customers;
+  SELECT * FROM accounts;
 
 -- 1b. To Insert an existing email : Duplicate Key Error Message
 --    CALL wrap_proc_new_customer('PostgreSQL', 'MySQL@gmail.com', '3366882299', 'Current', 2000);
@@ -728,20 +849,20 @@ CALL proc_accounts_per_customer(1);
 CALL proc_delete_account(4);
 -- SELECT * FROM accounts;
 
-
 -- 5.a To Delete a Record
 CALL proc_delete_record(3);
 
 CALL proc_delete_record(5);
 
--- SELECT * FROM customers;
--- SELECT * FROM accounts;
--- SELECT * FROM account_log_table;
--- SELECT * FROM transaction_depo_with;
--- SELECT * FROM transaction_transfer;
+SELECT * FROM customers;
+SELECT * FROM accounts;
+-- 🧾 Log table: Tracks deleted accounts for audit
+SELECT * FROM account_log_table;
+SELECT * FROM transaction_depo_with;
+SELECT * FROM transaction_transfer;
  
+-- 🧾 Log table: Tracks deleted accounts for audit
 -- A customized look to the account_log_table 
-/*
 SELECT 
 	    customer_id,
         COALESCE(account_id, 'Account ids :') AS account_id,
@@ -749,6 +870,7 @@ SELECT
         email,
         phone,
         deleted_at
+-- 🧾 Log table: Tracks deleted accounts for audit
 FROM account_log_table
  ORDER BY
 		customer_id,
@@ -757,4 +879,4 @@ FROM account_log_table
             ELSE 1
 		END;
 
-*/
+ 
