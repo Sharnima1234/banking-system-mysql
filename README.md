@@ -111,6 +111,7 @@ This project is a Banking Management System built using MySQL for the backend an
 ---
 
 ## 🪝 Triggers : 
+
         - trigger_check_min_bal : Checks if minimum balance is Rs 100
 
 	- trigger_log_deleted_account: Logs account info into closed_account_log_table after delete
@@ -146,8 +147,7 @@ This project is a Banking Management System built using MySQL for the backend an
 
 ## 🔐 Important Setup Note : 
 
-	- In VBA, I used placeholder connection strings like:
-
+	- In VBA, I used placeholder connection strings like :
 	-	connStr = "DSN=MySQL_Excel;UID=your_username;PWD=your_password;" 
         -    You may replace this with your own credentials
 
