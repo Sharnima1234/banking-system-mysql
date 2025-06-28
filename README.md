@@ -48,18 +48,18 @@ This project is a Banking Management System built using MySQL for the backend an
 
 ## 📁 Project Structure : 
 
-	- project_banking_db/
+	- banking-system-mysql/
 	- ├── database/
 	- │   ├── Create Tables.sql       # All CREATE TABLEs (customers, accounts, transactions...)
 	- │   ├── Procedures.sql          # Stored procedures like add_customer, delete_account, etc.
 	- │   ├── Triggers.sql            # Triggers for closed account and customer logs
 	- │   
 	- │
-	- ├── Excel_FrontEnd/
+	- ├── excel_frontend/
 	- │   ├── GitHub - Banking Project using MySQL with VBA Excel.xlsm           # Excel file with macro buttons
 	- │   └── VBA_Code_Front-End.bas     # VBA module code (cleaned of credentials)
 	- │
-	- ├── Pictures from Project/
+	- ├── screenshots/
 	- │   ├── Create New Customer ID, Account ID, Transactions.png      
 	- │   └── Customers and Accounts Log Table.png        
 	- │   └── Transactions Log.png                       
